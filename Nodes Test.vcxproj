@@ -24,6 +24,7 @@
     <ProjectGuid>{38c10f5b-bcd2-4e18-b61b-14aa15784f29}</ProjectGuid>
     <RootNamespace>NodesTest</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>NodesGraph</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
