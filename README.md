@@ -14,8 +14,8 @@ In the top left corner, it shows the current mode. There are the following modes
 To exit a toggle mode (Like Move or Link), press their activation key to toggle them off, or press ESC to go back to Selection Mode.
 
 # Basic User Interface
-Press and Hold the left mouse button down to drag the viewport arround. The green square in the viewport is the origin, and that is (0, 0) for all of the nodes.
-Press and hold control and move the mouse around to do somooth zooming. Scroll the scroll wheel to do standard zooming.
-Press 'O' to center the origin & viewport to the center of the screen and reset zooming.
-Press the numbers 1-9 to select a node. See more on this in the Modes Section.
-The status of the program is displayed in the top left corner.
+1. Press and Hold the left mouse button down to drag the viewport arround. The green square in the viewport is the origin, and that is (0, 0) for all of the nodes.
+2. Press and hold control and move the mouse around to do somooth zooming. Scroll the scroll wheel to do standard zooming.
+3. Press 'O' to center the origin & viewport to the center of the screen and reset zooming.
+4. Press the numbers 1-9 to select a node. See more on this in the Modes Section.
+5. The status of the program is displayed in the top left corner.
