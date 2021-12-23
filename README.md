@@ -16,7 +16,7 @@ It uses a keyboard based interface for interacting with the program.
 There are a few modes in this program, and each are used to create and edit data in the program.
 
 1. Selection Mode: This mode is the standard mode, and it allows you to simply select a node. This mode is active when no other mode is active.
-2. Move Mode: This mode will allow you to move a node around by selecting it, and then clicking on a place in the viewport, and it will move the node to that point. To Access this mode, press M.
+2. Move Mode: This mode will allow you to move a node around by selecting it, and then clicking on a place in the viewport, and it will move the node to that point. To Access this mode, press M. When in Move mode, if you press an hold shift while a node is selected, it will follow the cursor as long is shift is held down.
 3. Connection Selection Mode: Similar to Selection Mode but only deals with connections. To Access this mode, press C.
 4. Add Node Mode: Adds nodes to the viewport. By pressing down on the viewport, a node will be created in the spot you placed. To Access this mode, press A.
 5. Link Mode: This mode is for adding a Connection/Link to two different nodes. To begin, press L to activate this mode. Then, select your first node. Then select your second node. If a connection already exists between the two nodes, an error will pop up. If not, the connection will be created. NOTE: A node cannot be linked to itself.

@@ -381,6 +381,23 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 			OPos = OPosLast + Vector2d(ChangeX, ChangeY);
 			RedrawWindow(Window, nullptr, nullptr, RDW_ERASENOW | RDW_INVALIDATE);
 		}
+
+		else if (Mode == MoveMode && CurrentBox && (GetKeyState(VK_SHIFT) & 0x8000))
+		{
+			POINT Cursor;
+			GetCursorPos(&Cursor);
+
+			RECT WndRect;
+			GetClientRect(Window, &WndRect);
+
+			Vector2d Cur = Vector2d((double)Cursor.x, (double)Cursor.y);
+			Vector2d Conv = ScreenToOrigin(Cur, WndRect);
+
+			CurrentBox->Point = Conv;
+
+			RedrawWindow(Window, nullptr, nullptr, RDW_ERASENOW | RDW_INVALIDATE);
+			return 0;
+		}
 		return 0;
 	}
 	case WM_LBUTTONUP:
