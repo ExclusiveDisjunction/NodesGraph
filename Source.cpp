@@ -78,11 +78,13 @@ enum Modes
 	ConnectionSelMode = 4,
 	AddNodeMode = 8,
 	AcceptingNumber = 16,
+	RadiusChangeMode = 32
 };
 int Mode = 0;
 
 Vector<Box*> Boxes;
 Vector<Connection*> Connections;
+int Radius = 5;
 
 String RawTextIn;
 
@@ -260,9 +262,9 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 
 					CubicBezier Bez; //Sets up the cubic bezier to connect the different nodes together. Joins from bottom of Source to top of To.
 					Bez.Begin = Source->Point - Vector2d(0, BoxSize1);
-					Bez.A1 = Source->Point - Vector2d(0, 7 + BoxSize1);
+					Bez.A1 = Source->Point - Vector2d(0, Radius + BoxSize1);
 					Bez.End = To->Point + Vector2d(0, BoxSize2);
-					Bez.A2 = To->Point + Vector2d(0, 7 + BoxSize2);
+					Bez.A2 = To->Point + Vector2d(0, Radius + BoxSize2);
 
 					bool Begin = true; //When true, the algorithim will move to the current point instaed of drawing to it.
 					for (double T = 0.0; T <= 1.05; T += 0.05) //Draws the cubic bezier path.
@@ -299,6 +301,9 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 			break;
 		case AddNodeMode:
 			CurrentMode = L"Add Node Mode";
+			break;
+		case RadiusChangeMode:
+			CurrentMode = L"Radius Change Mode, Radius = " + String(Radius);
 			break;
 		default:
 			CurrentMode = L"Selection Mode";
@@ -446,6 +451,21 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 			RawTextIn.Clear();
 			return 0;
 		}
+		case L'R':
+		case L'r':
+		{
+			if (Mode & RadiusChangeMode)
+				Mode = 0;
+			else
+			{
+				RawTextIn.Clear();
+				Mode = RadiusChangeMode;
+				CurrentBox = nullptr;
+				CurrentConnection = nullptr;
+				CurrentIndex = 0;
+			}
+			break;
+		}
 		case L'0':
 		case L'1':
 		case L'2':
@@ -467,6 +487,12 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 			}
 			else
 			{
+				if (Mode & RadiusChangeMode)
+				{
+					Radius = Num + 1;
+					return 0;
+				}
+
 				uint Size = (Mode & ConnectionSelMode) ? Connections.Size : Boxes.Size;
 				if (Num < 0 || Num >= Size)
 				{
@@ -538,6 +564,13 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 
 				uint Num = RawTextIn.ToUInt();
 				Num--;
+
+				if (Mode & RadiusChangeMode)
+				{
+					Radius = Num + 1;
+					return 0;
+				}
+
 				uint Size = Mode & ConnectionSelMode ? Connections.Size : Boxes.Size;
 				if (Num < 0 || Num >= Size)
 				{
@@ -589,6 +622,9 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 				RawTextIn.Clear();
 				break;
 			}
+
+			if (Mode & RadiusChangeMode)
+				Mode &= ~RadiusChangeMode;
 
 			break;
 		}

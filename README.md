@@ -21,6 +21,7 @@ There are a few modes in this program, and each are used to create and edit data
 4. Add Node Mode: Adds nodes to the viewport. By pressing down on the viewport, a node will be created in the spot you placed. To Access this mode, press A.
 5. Link Mode: This mode is for adding a Connection/Link to two different nodes. To begin, press L to activate this mode. Then, select your first node. Then select your second node. If a connection already exists between the two nodes, an error will pop up. If not, the connection will be created. NOTE: A node cannot be linked to itself.
 6. Accepting Number Mode: Used for selecting a node. Refer to the Selecting Nodes & Connections section for more information. To toggle this mode, press N.
+7. Radius Changing Mode: Press 'R' to enter this mode, which allows you to adjust the smoothness of the connection lines. By pressing 0-9, or using number selection (See Selecting Nodes & Connections for more instructions), it will change the radius of the viewport in realtime.
 
 # Basic User Interface
 1. To drag around in the viewport, press and hold the left mouse button. The green square in the middle of the screen is the origin.
