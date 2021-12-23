@@ -46,6 +46,12 @@ String::String(const long& Data) : String(std::to_wstring(Data)) {}
 String::String(const unsigned long long& Data) : String(std::to_wstring(Data)) {}
 String::String(const float& Data) : String(std::to_wstring(Data)) {}
 String::String(const double& Data) : String(std::to_wstring(Data)) {}
+String::~String()
+{
+    free(Text);
+    Text = nullptr;
+    _Len = _Compacity = 0;
+}
 
 uint String::Length() const
 {
@@ -62,13 +68,6 @@ void String::AssignByChars(const wchar_t* Chars)
     Text = static_cast<wchar_t*>(malloc(sizeof(wchar_t) * _Compacity));
     memset(Text, 0, sizeof(wchar_t) * _Compacity);
     memcpy(Text, Chars, sizeof(wchar_t) * Len);
-
-   /* int Len = lstrlenW(Chars) + 1;
-    _Compacity = Len + (Len < 4 ? 5 : 20);
-    Text = static_cast<wchar_t*>(realloc(Text, sizeof(wchar_t) * _Compacity));
-    memset(Text, 0, sizeof(wchar_t) * _Compacity);
-    memcpy(Text, Chars, sizeof(wchar_t) * Len);
-    _Len = static_cast<int>(Len);*/
 }
 void String::AssignByChars(const wchar_t Char)
 {
@@ -136,6 +135,13 @@ bool String::RemoveAt(uint Index)
     if (Index >= _Len)
         return false;
 
+    if (Index + 1 == Length())
+    {
+        _Len--;
+        Text[Index] = '\0';
+        return true;
+    }
+
     uint FirstSize = (_Len - Index + 1);
     wchar_t* TempText = static_cast<wchar_t*>(malloc(sizeof(wchar_t) * FirstSize));
     memcpy(TempText, &Text[Index + 1], sizeof(wchar_t) * FirstSize);
@@ -185,7 +191,11 @@ void String::Clear()
 {
     free(Text);
     Text = nullptr;
-    _Compacity = _Len = 0;
+
+    _Compacity = 3;
+    _Len = 0;
+    Text = static_cast<wchar_t*>(malloc(sizeof(wchar_t) * _Compacity));
+    memset(Text, 0, sizeof(wchar_t) * _Compacity);
 }
 
 const wchar_t* String::ConstWchar() const

@@ -42,10 +42,7 @@ public:
 	String(const unsigned long long& Data);
 	String(const float& Data);
 	String(const double& Data);
-	~String()
-	{
-		Clear();
-	}
+	~String();
 
 	friend class AString;
 

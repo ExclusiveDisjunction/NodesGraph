@@ -65,8 +65,9 @@ struct Connection
 	AaColor Color = 0xFF00FFFF;
 };
 
-bool MouseDown = false, IsZooming = false;
+bool MouseDown = false;
 Box* CurrentBox;
+Connection* CurrentConnection;
 uint CurrentIndex;
 
 enum Modes
@@ -75,12 +76,15 @@ enum Modes
 	LinkMode = 1,
 	MoveMode = 2,
 	ConnectionSelMode = 4,
-	AddNodeMode = 8
+	AddNodeMode = 8,
+	AcceptingNumber = 16,
 };
 int Mode = 0;
 
 Vector<Box*> Boxes;
 Vector<Connection*> Connections;
+
+String RawTextIn;
 
 HWND _Base;
 
@@ -180,18 +184,18 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 		{
 			Vector<Vector2d> RenderPoints = Origin;
 
-			HPEN BoxPen = CreatePen(PS_SOLID, (int)(5 * Zoom), 0x00FF00);
+			HPEN BoxPen = CreatePen(PS_SOLID, 5, 0x00FF00);
 			HGDIOBJ OldPen = SelectObject(Dc, BoxPen);
 			HGDIOBJ OldBrush = SelectObject(Dc, GetStockObject(NULL_BRUSH));
 			for (Vector2d& Obj : RenderPoints)
 			{
-				Vector2d Tran = Obj.X * iHat + Obj.Y * jHat;
-				Tran = OriginToScreen(Tran, WndRect);
+				//Vector2d Tran = Obj.X * iHat + Obj.Y * jHat;
+				Vector2d Tran = OriginToScreen(Obj, WndRect);
 
 				if (!PtInRect(&WndRect, Tran.operator POINT()))
 					continue;
 
-				int By = 10 * Zoom;
+				int By = 12;
 				Rectangle(Dc, long(Tran.X) - By, long(Tran.Y) - By, long(Tran.X + By), long(Tran.Y + By));
 			}
 
@@ -202,10 +206,10 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 
 		if (!MouseDown)
 		{
-			double Precis = 1 / ((Zoom + 1) * 16);
+			//double Precis = 1 / ((Zoom + 1) * 16);
 
-			int Rate = int(50 * (1 / Zoom)) + 10;
-			RECT BoundRect = { -Rate, -Rate, WndRect.right + Rate, WndRect.bottom + Rate }; //The bounding edge for rendering. If a node is outside of this range, it will not be considered for rendering.
+			//int Rate = int(50 * (1 / Zoom)) + 10;
+			RECT BoundRect = { 0, 0, WndRect.right, WndRect.bottom }; //The bounding edge for rendering. If a node is outside of this range, it will not be considered for rendering.
 
 			double BoxSize = 0;
 
@@ -219,7 +223,7 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 					AaColor Color = (Item == CurrentBox ? AaColor(0xFFFFFFFF) : Item->Color);
 					HBRUSH Base = CreateSolidBrush(Color);
 					HPEN Border = CreatePen(PS_SOLID, 3, Color);
-					if (Item == CurrentBox)
+					if (Item == CurrentBox) //If Item is the current box, then it will be highlighted so the user can see that it is active.
 						SetTextColor(Dc, 0x000000);
 					else
 						SetTextColor(Dc, 0xFFFFFF);
@@ -227,14 +231,14 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 					SelectObject(Dc, Base);
 					SelectObject(Dc, Border);
 
-					Vector2d TopLeft = OriginToScreen(Item->Point - Vector2d(Item->Size, Item->Size) * Zoom, WndRect);
-					Vector2d BottomRight = OriginToScreen(Item->Point + Vector2d(Item->Size, Item->Size) * Zoom, WndRect);
+					Vector2d TopLeft = OriginToScreen(Item->Point - Vector2d(Item->Size, Item->Size), WndRect); //Determines the locations of the rectangle node.
+					Vector2d BottomRight = OriginToScreen(Item->Point + Vector2d(Item->Size, Item->Size), WndRect);
 
-					int By = 40 * Zoom;
+					int By = 30;
 					BoxSize = 1;
 					RECT Rect = { (int)TopLeft.X, (int)TopLeft.Y, (int)BottomRight.X, (int)BottomRight.Y };
-					Rectangle(Dc, Rect.left, Rect.top, Rect.right, Rect.bottom);
-					DrawTextW(Dc, static_cast<LPCWSTR>(Item->Text), Item->Text.Length(), &Rect, DT_SINGLELINE | DT_VCENTER | DT_CENTER);
+					Rectangle(Dc, Rect.left, Rect.top, Rect.right, Rect.bottom); //Draws a rectangle representingg a node.
+					DrawTextW(Dc, static_cast<LPCWSTR>(Item->Text), Item->Text.Length(), &Rect, DT_SINGLELINE | DT_VCENTER | DT_CENTER); //Draws the text of the box into the center of the node.
 
 					DeleteObject(Base);
 					DeleteObject(Border);
@@ -245,7 +249,7 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 			{
 				for (Connection* Item : Connections)
 				{
-					AaColor Color = Item->Color;
+					AaColor Color = (Item == CurrentConnection ? AaColor(0xFFFFFF) : Item->Color);
 					HPEN Border = CreatePen(PS_SOLID, 3 * Zoom, Color);
 					SelectObject(Dc, Border);
 
@@ -254,14 +258,14 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 					int BoxSize1 = Source->Size;
 					int BoxSize2 = To->Size;
 
-					CubicBezier Bez;
-					Bez.Begin = Source->Point - Vector2d(BoxSize1 * Zoom, 0);
-					Bez.A1 = Source->Point - Vector2d(7 + BoxSize1 * Zoom, 0);
-					Bez.End = To->Point + Vector2d(BoxSize2 * Zoom, 0);
-					Bez.A2 = To->Point + Vector2d(7 + BoxSize2 * Zoom, 0);
+					CubicBezier Bez; //Sets up the cubic bezier to connect the different nodes together. Joins from bottom of Source to top of To.
+					Bez.Begin = Source->Point - Vector2d(0, BoxSize1);
+					Bez.A1 = Source->Point - Vector2d(0, 7 + BoxSize1);
+					Bez.End = To->Point + Vector2d(0, BoxSize2);
+					Bez.A2 = To->Point + Vector2d(0, 7 + BoxSize2);
 
-					bool Begin = true;
-					for (double T = 0.0; T <= 1.05; T += 0.05)
+					bool Begin = true; //When true, the algorithim will move to the current point instaed of drawing to it.
+					for (double T = 0.0; T <= 1.05; T += 0.05) //Draws the cubic bezier path.
 					{
 						Vector2d Temp = Bez(T);
 						Vector2d Tran = OriginToScreen(Temp, WndRect);
@@ -279,6 +283,7 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 			}
 		}
 
+		//This block sets up the status for the top left corner.
 		SetTextColor(Dc, 0xFFFFFF);
 		String CurrentMode;
 		switch (Mode)
@@ -299,7 +304,9 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 			CurrentMode = L"Selection Mode";
 			break;
 		}
-		if (CurrentBox)
+		if (Mode & AcceptingNumber)
+			CurrentMode += ", Accepting Number Currently: \"" + RawTextIn + L"\".";
+		else if (CurrentBox)
 			CurrentMode += L", Selected Box #" + String(CurrentIndex + 1);
 		TextOut(Dc, 10, 10, static_cast<LPCWSTR>(CurrentMode), CurrentMode.Length());
 
@@ -350,20 +357,7 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 	}
 	case WM_MOUSEMOVE:
 	{
-		if (IsZooming)
-		{
-			POINT Cursor;
-			GetCursorPos(&Cursor);
-
-			double Distance = sqrt(pow(Cursor.x - CursorLast.X, 2) + pow(Cursor.y - CursorLast.Y, 2));
-			Distance /= 32;
-			if ((double)Cursor.y < CursorLast.Y)
-				Distance *= -1;
-
-			ZoomThis(Distance);
-			CursorLast = { (double)Cursor.x, (double)Cursor.y };
-		}
-		else if (MouseDown)
+		if (MouseDown)
 		{
 			if (!(GetAsyncKeyState(VK_LBUTTON) & 0x8000))
 			{
@@ -390,88 +384,193 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 		RedrawWindow(_Base, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASENOW);
 		return 0;
 	}
-	case WM_MOUSEWHEEL:
-	case WM_MOUSEHWHEEL:
+	case WM_CHAR:
 	{
-		double Change = (double)GET_WHEEL_DELTA_WPARAM(wp);
-		Change /= (WHEEL_DELTA * 3);
-		ZoomThis(Change);
-		return 0;
-	}
-	case WM_KEYDOWN:
-	{
-		WPARAM Key = wp;
+		wchar_t Key = wp;
+		RECT WndRect;
+		GetClientRect(Window, &WndRect);
 
-		if (Key == VK_CONTROL)
+		switch (Key)
 		{
-			IsZooming = true;
-			POINT Cursor;
-			GetCursorPos(&Cursor);
-
-			CursorLast = { double(Cursor.x), double(Cursor.y) };
-		}
-		else
+		case L'O':
+		case L'o':
+			OPos = { (double)WndRect.right / 2, (double)WndRect.bottom / 2 };
+			Zoom = 1;
+			return 0;
+		case L'A':
+		case L'a':
 		{
-			RECT WndRect;
-			GetClientRect(_Base, &WndRect);
-
-			switch (Key)
-			{
-			case L'O':
-				OPos = { (double)WndRect.right / 2, (double)WndRect.bottom / 2 };
-				Zoom = 1;
-				break;
-			case VK_SHIFT:
-			{
+			if (Mode & Modes::AddNodeMode)
+				Mode = 0;
+			else
 				Mode = AddNodeMode;
-				break;
-			}
-			case L'L': //Link Mode
+			return 0;
+		}
+		case L'L':
+		case L'l': //Link Mode
+		{
+			if (Mode & LinkMode)
+				Mode = 0;
+			else
+				Mode = LinkMode;
+			return 0;
+		}
+		case L'M':
+		case L'm': //Move Mode
+		{
+			if (Mode & MoveMode)
+				Mode = 0;
+			else
 			{
-				if (Mode == LinkMode)
-					Mode = 0;
-				else
-					Mode = LinkMode;
-				break;
+				CurrentConnection = nullptr;
+				Mode = MoveMode;
 			}
-			case L'M': //Move Mode
+			return 0;
+		}
+		case L'C':
+		case L'c': //Connection Selection Mode
+		{
+			if (Mode & ConnectionSelMode)
+				Mode = 0;
+			else
 			{
-				if (Mode == MoveMode)
-					Mode = 0;
-				else
-					Mode = MoveMode;
-				break;
+				CurrentBox = nullptr;
+				Mode = ConnectionSelMode;
 			}
-			case L'0':
-			case L'1':
-			case L'2':
-			case L'3':
-			case L'4':
-			case L'5':
-			case L'6':
-			case L'7':
-			case L'8':
-			case L'9':
-			{
-				uint Num = wp - L'0';
-				Num--;
+			return 0;
+		}
+		case L'N':
+		case L'n': //Number Entry
+		{
+			Mode |= AcceptingNumber;
+			RawTextIn.Clear();
+			return 0;
+		}
+		case L'0':
+		case L'1':
+		case L'2':
+		case L'3':
+		case L'4':
+		case L'5':
+		case L'6':
+		case L'7':
+		case L'8':
+		case L'9':
+		{
+			uint Num = wp - L'0';
+			Num--;
 
-				if (Num < 0 || Num >= Boxes.Size)
+			if (Mode & AcceptingNumber)
+			{
+				Num++;
+				RawTextIn += String(Num);
+			}
+			else
+			{
+				uint Size = (Mode & ConnectionSelMode) ? Connections.Size : Boxes.Size;
+				if (Num < 0 || Num >= Size)
 				{
 					MessageBox(Window, TEXT("The range is invalid."), L"Bound Error:", MB_OK | MB_ICONERROR);
 					break;
 				}
 
-				if (Mode == LinkMode)
+				if (Mode & LinkMode)
 				{
 					if (CurrentBox == nullptr)
 					{
 						CurrentIndex = Num;
 						CurrentBox = Boxes[Num];
 					}
+					else if (CurrentBox == Boxes[Num])
+					{
+						MessageBox(Window, TEXT("A box cannot be linked to itself."), TEXT("Error"), MB_OK | MB_ICONERROR);
+						CurrentIndex = 0;
+						CurrentBox = nullptr;
+					}
 					else
 					{
 						Box* This = Boxes[Num];
+
+						for (Connection* Item : Connections)
+						{
+							if (Item->One == CurrentBox && Item->Two == This)
+							{
+								MessageBox(Window, TEXT("A link already exists between these two nodes."), TEXT("Error:"), MB_ICONERROR | MB_OK);
+								return 0;
+							}
+						}
+
+						Connections.Add(new Connection(CurrentBox, This));
+
+						CurrentIndex = 0;
+						CurrentBox = nullptr;
+					}
+				}
+				else
+				{
+					if (Mode & ConnectionSelMode)
+						CurrentConnection = Connections[Num];
+					else
+						CurrentBox = Boxes[Num];
+					CurrentIndex = Num;					
+				}
+			}
+		}
+		}
+
+		RedrawWindow(_Base, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASENOW);
+		return 0;
+	}
+	case WM_KEYDOWN:
+	{
+		WPARAM Key = wp;
+
+		RECT WndRect;
+		GetClientRect(_Base, &WndRect);
+
+		switch (Key)
+		{
+		case VK_RETURN:
+		{
+			if (Mode & Modes::AcceptingNumber)
+			{
+				Mode &= ~AcceptingNumber;
+
+				uint Num = RawTextIn.ToUInt();
+				Num--;
+				uint Size = Mode & ConnectionSelMode ? Connections.Size : Boxes.Size;
+				if (Num < 0 || Num >= Size)
+				{
+					MessageBox(Window, TEXT("The range is invalid."), L"Bound Error:", MB_OK | MB_ICONERROR);
+					break;
+				}
+
+				if (Mode & LinkMode)
+				{
+					if (CurrentBox == nullptr)
+					{
+						CurrentIndex = Num;
+						CurrentBox = Boxes[Num];
+					}
+					else if (CurrentBox == Boxes[Num])
+					{
+						MessageBox(Window, TEXT("A box cannot be linked to itself."), TEXT("Error"), MB_OK | MB_ICONERROR);
+						CurrentIndex = 0;
+						CurrentBox = nullptr;
+					}
+					else
+					{
+						Box* This = Boxes[Num];
+
+						for (Connection* Item : Connections)
+						{
+							if (Item->One == CurrentBox && Item->Two == This)
+							{
+								MessageBox(Window, TEXT("A link already exists between these two nodes."), TEXT("Error:"), MB_ICONERROR | MB_OK);
+								return 0;
+							}
+						}
+
 						Connections.Add(new Connection(CurrentBox, This));
 
 						CurrentIndex = 0;
@@ -481,31 +580,92 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 				else
 				{
 					CurrentIndex = Num;
-					CurrentBox = Boxes[Num];
+					if (Mode & ConnectionSelMode)
+						CurrentConnection = Connections[Num];
+					else
+						CurrentBox = Boxes[Num];
 				}
-			}
+
+				RawTextIn.Clear();
+				break;
 			}
 
-			RedrawWindow(_Base, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASENOW);
-		}
-		return 0;
-	}
-	case WM_KEYUP:
-	{
-		switch (wp)
-		{
-		case VK_CONTROL:
-			IsZooming = false;
-		case VK_SHIFT:
-		{
-			if (Mode == AddNodeMode)
-				Mode = 0;
-
-			RedrawWindow(_Base, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASENOW);
 			break;
 		}
+		case VK_BACK:
+		{
+			if (Mode & Modes::AcceptingNumber)
+			{
+				if (RawTextIn.Length() > 0)
+					RawTextIn.RemoveAt(RawTextIn.Length() - 1);
+			}
+			break;
+		}
+		case VK_DELETE:
+		{
+			if (Mode & ConnectionSelMode)
+			{
+				if (!CurrentConnection)
+					return 0;
+
+				Connections.Remove(CurrentConnection);
+				delete CurrentConnection;
+
+				CurrentConnection = nullptr;
+				CurrentIndex = 0;
+			}
+			else
+			{
+				if (!CurrentBox)
+					return 0;
+
+				Boxes.Remove(CurrentBox);
+				Box* TempBox = CurrentBox; //DO NOT REFERENCE, simply for comparing any connections.
+				delete CurrentBox;
+
+				int Index = 1;
+				for (Box* Item : Boxes)
+				{
+					Item->Text = Index;
+					Index++;
+				}
+
+				for (int i = (int)Connections.Size - 1; i >= 0; i--)
+				{
+					Connection* Item = Connections[i];
+					if (Item->One == TempBox || Item->Two == TempBox)
+					{
+						Connections.Remove(Item);
+						delete Item;
+					}
+				}
+
+				CurrentBox = nullptr;
+				CurrentIndex = 0;
+			}
+
+			RedrawWindow(Window, nullptr, nullptr, RDW_ERASENOW | RDW_INVALIDATE);
+			return 0;
+		}
+		case VK_ESCAPE:
+			Mode = 0;
+			CurrentIndex = 0;
+			RawTextIn.Clear();
+			CurrentBox = nullptr;
+
+			if (GetKeyState(VK_SHIFT) & 0x8000)
+			{
+				for (Box* Item : Boxes)
+					delete Item;
+				Boxes.Clear();
+				for (Connection* Item : Connections)
+					delete Item;
+				Connections.Clear();
+			}
+			break;
 		}
 
+		RedrawWindow(_Base, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASENOW);
 		return 0;
 	}
 	case WM_DESTROY:
