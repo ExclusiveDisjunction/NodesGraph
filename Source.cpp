@@ -1,8 +1,16 @@
 #include <Windows.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <io.h>
+#include <iostream>
+#include <fstream>
+
+using namespace std;
 
 #include "Arithmetic.h"
 #include "Container.h"
 #include "Color.h"
+#include "Str.h"
 
 LRESULT __stdcall WndProc(HWND, UINT, WPARAM, LPARAM);
 
@@ -47,6 +55,7 @@ struct Box
 	Vector2d Point;
 	AaColor Color = 0xFFFF00FF;
 	double Size = 1;
+	String Text;
 };
 struct Connection
 {
@@ -56,8 +65,19 @@ struct Connection
 	AaColor Color = 0xFF00FFFF;
 };
 
-
 bool MouseDown = false, IsZooming = false;
+Box* CurrentBox;
+uint CurrentIndex;
+
+enum Modes
+{
+	SelectionMode = 0,
+	LinkMode = 1,
+	MoveMode = 2,
+	ConnectionSelMode = 4,
+	AddNodeMode = 8
+};
+int Mode = 0;
 
 Vector<Box*> Boxes;
 Vector<Connection*> Connections;
@@ -86,13 +106,6 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 	{
 	case WM_CREATE:
 	{
-		Boxes.Add(new Box({3, 3}));
-		Boxes.Add(new Box({ -3, -3 }));
-		Boxes.Add(new Box({ 3, -3 }));
-		Boxes.Add(new Box({ -3, 3 }));
-
-		Connections.Add(new Connection(Boxes[0], Boxes[1]));
-		Connections[0]->Color = 0xFF008888;
 		return 0;
 	}
 	case WM_PAINT:
@@ -195,14 +208,21 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 			RECT BoundRect = { -Rate, -Rate, WndRect.right + Rate, WndRect.bottom + Rate }; //The bounding edge for rendering. If a node is outside of this range, it will not be considered for rendering.
 
 			double BoxSize = 0;
+
+			SetTextColor(Dc, 0xFFFFFF);
+			SetBkMode(Dc, TRANSPARENT);
 			
 			//PUT BOX RENDERING HERE
 			{
 				for (Box* Item : Boxes)
 				{
-					AaColor Color = Item->Color;
+					AaColor Color = (Item == CurrentBox ? AaColor(0xFFFFFFFF) : Item->Color);
 					HBRUSH Base = CreateSolidBrush(Color);
 					HPEN Border = CreatePen(PS_SOLID, 3, Color);
+					if (Item == CurrentBox)
+						SetTextColor(Dc, 0x000000);
+					else
+						SetTextColor(Dc, 0xFFFFFF);
 
 					SelectObject(Dc, Base);
 					SelectObject(Dc, Border);
@@ -212,7 +232,9 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 
 					int By = 40 * Zoom;
 					BoxSize = 1;
-					Rectangle(Dc, (int)TopLeft.X, (int)TopLeft.Y, (int)BottomRight.X, (int)BottomRight.Y);
+					RECT Rect = { (int)TopLeft.X, (int)TopLeft.Y, (int)BottomRight.X, (int)BottomRight.Y };
+					Rectangle(Dc, Rect.left, Rect.top, Rect.right, Rect.bottom);
+					DrawTextW(Dc, static_cast<LPCWSTR>(Item->Text), Item->Text.Length(), &Rect, DT_SINGLELINE | DT_VCENTER | DT_CENTER);
 
 					DeleteObject(Base);
 					DeleteObject(Border);
@@ -257,6 +279,30 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 			}
 		}
 
+		SetTextColor(Dc, 0xFFFFFF);
+		String CurrentMode;
+		switch (Mode)
+		{
+		case LinkMode:
+			CurrentMode = L"Link Mode";
+			break;
+		case MoveMode:
+			CurrentMode = L"Move Mode";
+			break;
+		case ConnectionSelMode:
+			CurrentMode = L"Connection Selection Mode";
+			break;
+		case AddNodeMode:
+			CurrentMode = L"Add Node Mode";
+			break;
+		default:
+			CurrentMode = L"Selection Mode";
+			break;
+		}
+		if (CurrentBox)
+			CurrentMode += L", Selected Box #" + String(CurrentIndex + 1);
+		TextOut(Dc, 10, 10, static_cast<LPCWSTR>(CurrentMode), CurrentMode.Length());
+
 		EndPaint(_Base, &ps);
 		return 0;
 	}
@@ -266,6 +312,35 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 
 		POINT Cursor;
 		GetCursorPos(&Cursor);
+
+		if (Mode == AddNodeMode)
+		{
+			RECT WndRect;
+			GetClientRect(Window, &WndRect);
+
+			Vector2d Cur = Vector2d((double)Cursor.x, (double)Cursor.y);
+			Vector2d Conv = ScreenToOrigin(Cur, WndRect);
+
+			Box* Item = new Box(Conv);
+			Boxes.Add(Item);
+			Item->Text = Boxes.Size;
+
+			RedrawWindow(Window, nullptr, nullptr, RDW_ERASENOW | RDW_INVALIDATE);
+			return 0;
+		}
+		else if (Mode == MoveMode && CurrentBox)
+		{
+			RECT WndRect;
+			GetClientRect(Window, &WndRect);
+
+			Vector2d Cur = Vector2d((double)Cursor.x, (double)Cursor.y);
+			Vector2d Conv = ScreenToOrigin(Cur, WndRect);
+
+			CurrentBox->Point = Conv;
+
+			RedrawWindow(Window, nullptr, nullptr, RDW_ERASENOW | RDW_INVALIDATE);
+			return 0;
+		}
 
 		CursorLast = { double(Cursor.x), double(Cursor.y) };
 		OPosLast = OPos;
@@ -344,32 +419,93 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 			{
 			case L'O':
 				OPos = { (double)WndRect.right / 2, (double)WndRect.bottom / 2 };
+				Zoom = 1;
 				break;
-			case L'1':
-				OPos = { 0.0, (double)WndRect.bottom };
-				break;
-			case '2':
-				OPos = { (double)WndRect.right, (double)WndRect.bottom };
-				break;
-			case '3':
-				OPos = { (double)WndRect.right, 0.0 };
-				break;
-			case '4':
-				OPos = { 0.0, 0.0 };
+			case VK_SHIFT:
+			{
+				Mode = AddNodeMode;
 				break;
 			}
+			case L'L': //Link Mode
+			{
+				if (Mode == LinkMode)
+					Mode = 0;
+				else
+					Mode = LinkMode;
+				break;
+			}
+			case L'M': //Move Mode
+			{
+				if (Mode == MoveMode)
+					Mode = 0;
+				else
+					Mode = MoveMode;
+				break;
+			}
+			case L'0':
+			case L'1':
+			case L'2':
+			case L'3':
+			case L'4':
+			case L'5':
+			case L'6':
+			case L'7':
+			case L'8':
+			case L'9':
+			{
+				uint Num = wp - L'0';
+				Num--;
 
-			Zoom = 1;
+				if (Num < 0 || Num >= Boxes.Size)
+				{
+					MessageBox(Window, TEXT("The range is invalid."), L"Bound Error:", MB_OK | MB_ICONERROR);
+					break;
+				}
+
+				if (Mode == LinkMode)
+				{
+					if (CurrentBox == nullptr)
+					{
+						CurrentIndex = Num;
+						CurrentBox = Boxes[Num];
+					}
+					else
+					{
+						Box* This = Boxes[Num];
+						Connections.Add(new Connection(CurrentBox, This));
+
+						CurrentIndex = 0;
+						CurrentBox = nullptr;
+					}
+				}
+				else
+				{
+					CurrentIndex = Num;
+					CurrentBox = Boxes[Num];
+				}
+			}
+			}
+
 			RedrawWindow(_Base, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASENOW);
 		}
 		return 0;
 	}
 	case WM_KEYUP:
 	{
-		if (wp == VK_CONTROL)
+		switch (wp)
 		{
+		case VK_CONTROL:
 			IsZooming = false;
+		case VK_SHIFT:
+		{
+			if (Mode == AddNodeMode)
+				Mode = 0;
+
+			RedrawWindow(_Base, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASENOW);
+			break;
 		}
+		}
+
 		return 0;
 	}
 	case WM_DESTROY:
