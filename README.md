@@ -4,12 +4,13 @@ A simple implementation of nodes and their connections.
 It uses a keyboard based interface for interacting with the program.
 
 # Selecting Nodes & Connections(Links)
-1. There are two ways to select nodes and connections:
+1. There are three ways to select nodes and connections:
    1. Press 1-9 to select their corresponding node.
    2. Press 'N' or 'n' to tell the program you are typing a number that is more than one chararacter, and then type the number you want. You can use backspace for this. When finished, press the RETURN or ENTER key to process the number.
-   3. If the number you typed in is not currently exisiting, the program will give you an error.
+   3. Select the target node with the mouse pointer/touch. (NODES ONLY, NOT CONNECTIONS)
+   PS: If the number you typed in is not currently exisiting, the program will give you an error.
 2. With nodes selected you can preform the other operations in the program.
-3. Selected nodes/connections will show up as white on the screen.
+3. Selected nodes/connections will show up with a white border on the screen.
 4. With a Connection/Link or a Node connected, you can press the DELETE key to remove it. (NOTE: Deleting a node will remove all of it's connections as well.)
 
 # Modes & How they are used
@@ -29,9 +30,10 @@ There are a few modes in this program, and each are used to create and edit data
 3. Press Escape to clear all modes and go to Selection Mode.
 4. Press Escape and Shift at the same time to completeley clear out the viewport.
 5. In the top left corner there is a text output that will show the current state of the program and what mode you are in.
+6. At any time, press 'S' to clear all selections without clearing the mode.
 
 # Things to add in the future:
-1. Custom Colors for connections & nodes.
+1. Custom Colors for connections & nodes. (In Progress, Colors will need to be updated, but the connections are on the way)
 2. Custom text for nodes.
-3. Selection by mouse pointer.
-4. Files, Loading and Saving of Schemas.
+3. Selection by mouse pointer. (DONE)
+4. Files, Loading and Saving of Schemas. (In Progress)
