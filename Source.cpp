@@ -14,6 +14,71 @@ using namespace std;
 
 LRESULT __stdcall WndProc(HWND, UINT, WPARAM, LPARAM);
 
+//Range: 380 to 780
+
+AaColor WavelenthToHex(int wavelength)
+{
+	double Gamma = 0.80, IntensityMax = 255, factor, red, green, blue;
+	if ((wavelength >= 380) && (wavelength < 440)) {
+		red = -(wavelength - 440) / (440 - 380);
+		green = 0.0;
+		blue = 1.0;
+	}
+	else if ((wavelength >= 440) && (wavelength < 490)) {
+		red = 0.0;
+		green = (wavelength - 440) / (490 - 440);
+		blue = 1.0;
+	}
+	else if ((wavelength >= 490) && (wavelength < 510)) {
+		red = 0.0;
+		green = 1.0;
+		blue = -(wavelength - 510) / (510 - 490);
+	}
+	else if ((wavelength >= 510) && (wavelength < 580)) {
+		red = (wavelength - 510) / (580 - 510);
+		green = 1.0;
+		blue = 0.0;
+	}
+	else if ((wavelength >= 580) && (wavelength < 645)) {
+		red = 1.0;
+		green = -(wavelength - 645) / (645 - 580);
+		blue = 0.0;
+	}
+	else if ((wavelength >= 645) && (wavelength < 781)) {
+		red = 1.0;
+		green = 0.0;
+		blue = 0.0;
+	}
+	else {
+		red = 0.0;
+		green = 0.0;
+		blue = 0.0;
+	};
+	// Let the intensity fall off near the vision limits
+	if ((wavelength >= 380) && (wavelength < 420)) {
+		factor = 0.3 + 0.7 * (wavelength - 380) / (420 - 380);
+	}
+	else if ((wavelength >= 420) && (wavelength < 701)) {
+		factor = 1.0;
+	}
+	else if ((wavelength >= 701) && (wavelength < 781)) {
+		factor = 0.3 + 0.7 * (780 - wavelength) / (780 - 700);
+	}
+	else {
+		factor = 0.0;
+	};
+	if (red != 0) {
+		red = round(IntensityMax * pow(red * factor, Gamma));
+	}
+	if (green != 0) {
+		green = round(IntensityMax * pow(green * factor, Gamma));
+	}
+	if (blue != 0) {
+		blue = round(IntensityMax * pow(blue * factor, Gamma));
+	}
+	return AaColor((unsigned char)red, (unsigned char)green, (unsigned char)blue);
+}
+
 int __stdcall wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int nCmdShow)
 {
 	WNDCLASS wn = {0};
@@ -53,7 +118,7 @@ struct Box
 	Box(Vector2d Point) : Point(Point) {}
 
 	Vector2d Point;
-	AaColor Color = 0xFFFF00FF;
+	int WavelenthColor = 380;
 	double Size = 1;
 	String Text;
 };
@@ -222,8 +287,8 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 			{
 				for (Box* Item : Boxes)
 				{
-					AaColor Color = (Item == CurrentBox ? AaColor(0xFFFFFFFF) : Item->Color);
-					HBRUSH Base = CreateSolidBrush(Color);
+					AaColor Color = (Item == CurrentBox ? AaColor(0xFFFFFFFF) : WavelenthToHex(Item->WavelenthColor));
+					HBRUSH Base = CreateSolidBrush(WavelenthToHex(Item->WavelenthColor));
 					HPEN Border = CreatePen(PS_SOLID, 3, Color);
 					if (Item == CurrentBox) //If Item is the current box, then it will be highlighted so the user can see that it is active.
 						SetTextColor(Dc, 0x000000);
@@ -354,6 +419,83 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 			return 0;
 		}
 
+		RECT WndRect;
+		GetClientRect(_Base, &WndRect);
+
+		Vector2d Cur = Vector2d((double)Cursor.x, (double)Cursor.y);
+		Vector2d Conv = ScreenToOrigin(Cur, WndRect);
+
+		bool DidFindBlock = false;
+		for (Box* Item : Boxes)
+		{
+			struct RectD
+			{
+				double Left, Top, Right, Bottom;
+			} Bounds = { Item->Point.X - 1, Item->Point.Y - 1, Item->Point.X + 1, Item->Point.Y + 1 };
+
+			auto PointInRectD = [](RectD Rect, Vector2d Point)
+			{
+				if (Point.X <= Rect.Right && Point.X >= Rect.Left && Point.Y >= Rect.Bottom && Point.Y <= Rect.Top)
+					return true;
+				else
+					return false;
+			};
+
+			RECT Temp = RECT{ (long)Item->Point.X - 1, (long)Item->Point.Y - 1, (long)Item->Point.X + 1, (long)Item->Point.Y + 1 };
+
+			if (PtInRect(&Temp, (POINT)Conv))//PointInRectD(Bounds, Conv))
+			{
+				if (Mode & LinkMode)
+				{
+					if (CurrentBox == nullptr)
+					{
+						CurrentIndex = 0;
+						CurrentBox = Item;
+					}
+					else if (CurrentBox == Item)
+					{
+						MessageBox(Window, TEXT("A box cannot be linked to itself."), TEXT("Error"), MB_OK | MB_ICONERROR);
+						CurrentIndex = 0;
+						CurrentBox = nullptr;
+					}
+					else
+					{
+						Box* This = Item;
+
+						for (Connection* NItem : Connections)
+						{
+							if (NItem->One == CurrentBox && NItem->Two == This)
+							{
+								MessageBox(Window, TEXT("A link already exists between these two nodes."), TEXT("Error:"), MB_ICONERROR | MB_OK);
+								return 0;
+							}
+						}
+
+						Connections.Add(new Connection(CurrentBox, This));
+
+						CurrentIndex = 0;
+						CurrentBox = nullptr;
+					}
+				}
+				else
+				{
+					CurrentIndex = Boxes.IndexOf(Item);
+					CurrentBox = Item;
+				}
+				
+				RedrawWindow(Window, NULL, nullptr, RDW_INVALIDATE | RDW_ERASENOW);
+				DidFindBlock = true;
+				break;
+			}
+		}
+
+		if (DidFindBlock)
+			break;
+
+		CurrentIndex = 0;
+		CurrentBox = nullptr;
+		CurrentConnection = nullptr;
+
 		CursorLast = { double(Cursor.x), double(Cursor.y) };
 		OPosLast = OPos;
 
@@ -414,6 +556,12 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 
 		switch (Key)
 		{
+		case L'S':
+		case L's':
+			CurrentBox = nullptr;
+			CurrentConnection = nullptr;
+			CurrentIndex = 0;
+			return 0;
 		case L'O':
 		case L'o':
 			OPos = { (double)WndRect.right / 2, (double)WndRect.bottom / 2 };
@@ -731,6 +879,22 @@ LRESULT __stdcall WndProc(HWND Window, UINT Message, WPARAM wp, LPARAM lp)
 		Connections.Clear();
 
 		PostQuitMessage(0);
+		return 0;
+	}
+	case WM_MOUSEWHEEL:
+	{
+		if (CurrentBox && (GetKeyState(VK_CONTROL) & 0x8000))
+		{
+			int New = CurrentBox->WavelenthColor;
+			double By = GET_WHEEL_DELTA_WPARAM(wp) / 2;
+			New += (int)By;
+			if (New < 380)
+				break;
+			else if (New > 780)
+				break;
+			else
+				CurrentBox->WavelenthColor = New;
+		}
 		return 0;
 	}
 	default:
