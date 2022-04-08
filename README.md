@@ -1,6 +1,9 @@
 # NodesGraph
 A simple implementation of nodes and their connections.
 
+NOTICE: THIS PROGRAM IS BEING PORTED TO ANOTHER PROGRAM OF MINE. IT WILL REMAIN ON GITHUB.COM, BUT NO FURTHER CHANGES WILL BE MADE TO THIS REPO.
+ANY ISSUES WILL BE CONSIDERED AND FIXED IN THE FINAL PRODUCT OF MY OTHER PROGRAM.
+
 It uses a keyboard based interface for interacting with the program.
 
 # Selecting Nodes & Connections(Links)
